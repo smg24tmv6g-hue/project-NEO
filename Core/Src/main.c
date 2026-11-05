@@ -106,9 +106,13 @@ uint8_t rx_byte;
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 100);
-    if (st==HAL_OK) {
-      HAL_UART_Transmit(&huart1, &rx_byte, 1, 100);
+    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) {
+      HAL_Delay(20);
+      if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) {
+        uint8_t k='K';
+        HAL_UART_Transmit(&huart1, &k, 1, 100);
+        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) { };
+      }
     }
 
 
