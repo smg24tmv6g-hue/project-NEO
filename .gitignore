@@ -1,0 +1,14 @@
+# Build artifacts
+build/
+cmake-build-*/
+*.elf
+*.map
+*.hex
+*.bin
+*.o
+*.d
+
+# IDE / editor
+.idea/
+.vscode/
+*.user
