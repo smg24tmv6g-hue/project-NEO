@@ -100,7 +100,7 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   uint8_t rx_byte;
-  uint8_t tx_byte;
+  uint8_t tx_byte='D';
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -317,7 +317,7 @@ static void MX_GPIO_Init(void)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
   if (GPIO_Pin == GPIO_PIN_15) {
     static uint32_t last_tick = 0;
-     uint8_t now = HAL_GetTick();
+     uint32_t now = HAL_GetTick();
     if (now-last_tick<100) {
       last_tick = now;
       return ;
