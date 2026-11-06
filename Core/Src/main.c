@@ -61,7 +61,7 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+volatile uint32_t flag=0;
 /* USER CODE END 0 */
 
 /**
@@ -99,25 +99,23 @@ int main(void)
   MX_TIM12_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-uint8_t rx_byte;
+  uint8_t rx_byte;
+  uint8_t tx_byte;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 100);
-    if (st==HAL_OK) {
-      HAL_UART_Transmit(&huart1, &rx_byte, 1, 100);
-  }
-    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) {
-      HAL_Delay(20);
-      if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) {
-        uint8_t k='K';
-        HAL_UART_Transmit(&huart1, &k, 1, 100);
-        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) { };
-      }
+    if (flag == 1) {
+      HAL_UART_Transmit(&huart1,&tx_byte, 1, 100);
+      flag = 0;
     }
+      HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 100);
+      if (st==HAL_OK) {
+        HAL_UART_Transmit(&huart1, &rx_byte, 1, 100);
+      }
+
 
 
     /* USER CODE END WHILE */
@@ -302,9 +300,13 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PA15 */
   GPIO_InitStruct.Pin = GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -312,7 +314,20 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+  if (GPIO_Pin == GPIO_PIN_15) {
+    static uint32_t last_tick = 0;
+     uint8_t now = HAL_GetTick();
+    if (now-last_tick<100) {
+      last_tick = now;
+      return ;
+    }else {
+      last_tick = now;
+      flag = 1;
+    }
+  }
 
+}
 /* USER CODE END 4 */
 
  /* MPU Configuration */
