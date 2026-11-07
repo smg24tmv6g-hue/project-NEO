@@ -109,6 +109,10 @@ int main(void)
   uint32_t last_color_tick=0;
   uint8_t color_idx=0;
   const uint8_t palette[4][3] = { {0,255,0}, {255,0,0}, {0,0,255}, {128,255,0} };//GRB顺序，红绿蓝橙
+  uint32_t beep_until=0;
+  uint8_t tone_idx=0;
+  HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
+  __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 0);//CRR=0时静音
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -118,6 +122,19 @@ int main(void)
     if (flag == 1) {
       HAL_UART_Transmit(&huart1,&tx_byte, 1, 100);
       flag = 0;
+      tone_idx ^=1;
+      if (tone_idx) {
+        __HAL_TIM_SET_AUTORELOAD(&htim12,1999);//2kHz=4mHz/2000
+        __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 1000);//占空比50%
+      }else {
+        __HAL_TIM_SET_AUTORELOAD(&htim12,999);//4kHz=4mHz/1000
+        __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 700);//占空比70%
+      }
+      beep_until = HAL_GetTick()+200;
+    }
+    if (beep_until!=0&&HAL_GetTick()>=beep_until) {
+      __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 0);
+      beep_until = 0;
     }
       HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 100);
       if (st==HAL_OK) {
@@ -269,7 +286,7 @@ static void MX_TIM12_Init(void)
 
   /* USER CODE END TIM12_Init 1 */
   htim12.Instance = TIM12;
-  htim12.Init.Prescaler = 0;
+  htim12.Init.Prescaler = 59;
   htim12.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim12.Init.Period = 65535;
   htim12.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
