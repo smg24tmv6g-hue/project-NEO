@@ -110,7 +110,7 @@ int main(void)
   uint8_t color_idx=0;
   const uint8_t palette[4][3] = { {0,255,0}, {255,0,0}, {0,0,255}, {128,255,0} };//GRB顺序，红绿蓝橙
   uint32_t beep_until=0;
-  uint8_t tone_idx=0;
+  uint8_t tone_idx=0;//音调编号
   HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
   __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 0);//CRR=0时静音
   /* USER CODE END 2 */
@@ -122,7 +122,7 @@ int main(void)
     if (flag == 1) {
       HAL_UART_Transmit(&huart1,&tx_byte, 1, 100);
       flag = 0;
-      tone_idx ^=1;
+      tone_idx= tone_idx^1;//tone_idx与1做异或，在0与1切换
       if (tone_idx) {
         __HAL_TIM_SET_AUTORELOAD(&htim12,1999);//2kHz=4mHz/2000
         __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 1000);//占空比50%

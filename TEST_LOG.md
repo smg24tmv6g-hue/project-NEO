@@ -16,7 +16,7 @@
 - 方式：宿主机编译+审查+单测四向量绿（test_ws2812.c, gcc @ D:\MSYS2\ucrt64）
 - 配置：PA7/SPI6/6.0MHz/CPHA
 - 结果：构建绿 FLASH  28156B；颜色变化未上板验证
-- 欠账：
+- 欠账：latch 2ms阻塞（115200 下≈23 字节盲窗）上板验证未做
 - 证据：2EDGE（例程配置） 0xC0、0xF0来源于ws2812datasheet  RES 280µs
 ## 2026-11-7 Buzzer
 - 方式：宿主机编译+审查
