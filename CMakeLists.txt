@@ -33,8 +33,8 @@ enable_language(C ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME}
-        Core/Inc/ws2812_encode.h
-        Core/Src/ws2812_encode.c)
+        App/ws2812_encode.h
+        App/ws2812_encode.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

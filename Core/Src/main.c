@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ws2812_encode.h"
+#include "../../App/ws2812_encode.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

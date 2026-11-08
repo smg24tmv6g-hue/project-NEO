@@ -25,3 +25,8 @@
 - 证据：最大4kHz（手册）4kHz=4mHz/（999+1）2kHz=4mHz/（1999+1）
 - 4kHz占空比70%（最大时是直流电 不会响） 2kHz占空比50% CRR=0时静音 触发时按键换音 无阻塞鸣响
 - 说明：PSC固定 换音调只改ARR
+- ## 2026-11-8 App层构建
+  - 操作：将ws2812_encode.h/.c移入App test_ws2812.c放入App\test
+  - 方式：cd D:\firsttry\projectneo
+    gcc -Wall -Wextra App/ws2812_encode.c App/test_ws2812.c -o test_ws2812.exe
+    .\test_ws2812.exe 宿主机构建
