@@ -37,6 +37,10 @@ add_executable(${CMAKE_PROJECT_NAME}
         App/ws2812_encode.c
         BSP/UART/bsp_uart.h
         BSP/UART/bsp_uart.c
+        BSP/LED/bsp_led.h
+        BSP/LED/bsp_led.c
+        BSP/BUZZER/bsp_buzzer.h
+        BSP/BUZZER/bsp_buzzer.c
 )
 
 # Add STM32CubeMX generated sources
@@ -50,11 +54,17 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+        App/ws2812_encode.c
+        BSP/LED/bsp_led.c
+        BSP/UART/bsp_uart.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+        App
+        BSP/LED
+        BSP/UART
 )
 
 # Add project symbols (macros)

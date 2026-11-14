@@ -17,7 +17,7 @@
 - 配置：PA7/SPI6/6.0MHz/CPHA
 - 结果：构建绿 FLASH  28156B；颜色变化已上板验证
 - 欠账：latch 2ms阻塞（115200 下≈23 字节盲窗）
-- 证据：2EDGE（例程配置） 0xC0、0xF0来源于ws2812datasheet  RES 280µs
+- 证据：1EDGE（例程配置） 0xC0、0xF0来源于ws2812datasheet  RES 280µs（11-13将2EDGE改为1EDGE 复验确认）
 ## 2026-11-7 Buzzer
 - 方式：宿主机编译+审查+上板实验
 - 配置：PB15 TIM12_CH2 + 无源 4000Hz 
@@ -30,7 +30,6 @@
 - 按键：上板通过：按一次就响一下 两种音调换着响
 - WS2812：上板通过：红绿蓝橙轮转顺序正确、无红绿互换
 - 蜂鸣器：上板通过：4k/2k 双音可辨、200ms 自停
-
 - ## 2026-11-8 App层构建
   - 操作：将ws2812_encode.h/.c移入App test_ws2812.c放入App\test
   - 方式：cd D:\firsttry\projectneo
@@ -41,3 +40,8 @@
 - 再生成演练：e9eabd7；生成区四文件/App 零行/构建绿 28948B
 - PA5 速度档：52b0adf（6MHz 边沿质量）
 - 教训：盲 reset 事故一次——指针/磁盘/远程三地方模型入册；CubeMX 只碰干净树
+  ## 2026-11-14 bsp_led and bsp_buzzer
+- 前瞻：两者均放入BSP层 bsp_led入LED/ bsp_buzzer入BUZZER/
+- 结果：main.c得到瘦身效果 bsp函数可以直接调用 
+- 备注：初始化状态绿灯闪两次和循环状态蓝灯常亮 由于暂无error 红色指示灯不编入
+- 欠账：烧录口损坏 上板欠验证

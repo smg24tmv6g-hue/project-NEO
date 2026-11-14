@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "bsp_led.h"
 #include "../../App/ws2812_encode.h"
+#include "../../BSP/BUZZER/bsp_buzzer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -71,9 +73,7 @@ volatile uint32_t flag=0;
   * @brief  The application entry point.
   * @retval int
   */
-int main(void)
-{
-
+int main(void) {
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -105,59 +105,33 @@ int main(void)
   /* USER CODE BEGIN 2 */
   uint8_t rx_byte;
   uint8_t tx_byte='D';
-  uint8_t spi_buf[24];
-  uint32_t last_color_tick=0;
-  uint8_t color_idx=0;
-  const uint8_t palette[4][3] = { {0,255,0}, {255,0,0}, {0,0,255}, {128,255,0} };//GRB顺序，红绿蓝橙
-  uint32_t beep_until=0;
-  uint8_t tone_idx=0;//音调编号
-  HAL_TIM_PWM_Start(&htim12, TIM_CHANNEL_2);
-  __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 0);//CRR=0时静音
+  bsp_buzzer_init();
+  bsp_led_boot();
+  bsp_led_set(0,0,255);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    bsp_buzzer_tick();
     if (flag == 1) {
       HAL_UART_Transmit(&huart1,&tx_byte, 1, 100);
+      bsp_buzzer_beep();
       flag = 0;
-      tone_idx= tone_idx^1;//tone_idx与1做异或，在0与1切换
-      if (tone_idx) {
-        __HAL_TIM_SET_AUTORELOAD(&htim12,1999);//2kHz=4mHz/2000
-        __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 1000);//占空比50%
-      }else {
-        __HAL_TIM_SET_AUTORELOAD(&htim12,999);//4kHz=4mHz/1000
-        __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 700);//占空比70%
-      }
-      beep_until = HAL_GetTick()+200;
-    }
-    if (beep_until!=0&&HAL_GetTick()>=beep_until) {
-      __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_2, 0);
-      beep_until = 0;
     }
       HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 100);
       if (st==HAL_OK) {
         HAL_UART_Transmit(&huart1, &rx_byte, 1, 100);
       }
-    if (HAL_GetTick()-last_color_tick>1000)
-    {
-     last_color_tick=HAL_GetTick();
-      ws2812_encode(palette[color_idx][0],palette[color_idx][1],palette[color_idx][2],spi_buf);
-      HAL_SPI_Transmit(&hspi6,spi_buf,24,100);
-      uint32_t t0=HAL_GetTick();
-      while(HAL_GetTick()-t0<2) {}
-      color_idx=(color_idx+1)%4;
+
+      /* USER CODE END WHILE */
+
+      /* USER CODE BEGIN 3 */
     }
-
-
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+    /* USER CODE END 3 */
   }
-  /* USER CODE END 3 */
-}
 
 /**
   * @brief System Clock Configuration
