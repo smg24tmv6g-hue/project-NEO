@@ -36,3 +36,8 @@
   - 方式：cd D:\firsttry\projectneo
     gcc -Wall -Wextra App/ws2812_encode.c App/test_ws2812.c -o test_ws2812.exe
     .\test_ws2812.exe 宿主机构建
+  ## 2026-11-12 Ch3
+- App/ 分离：152fa21；status 无 App/、构建绿、单测重跑绿
+- 再生成演练：e9eabd7；生成区四文件/App 零行/构建绿 28948B
+- PA5 速度档：52b0adf（6MHz 边沿质量）
+- 教训：盲 reset 事故一次——指针/磁盘/远程三地方模型入册；CubeMX 只碰干净树
