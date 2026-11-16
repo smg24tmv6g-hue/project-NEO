@@ -42,6 +42,11 @@
 - 教训：盲 reset 事故一次——指针/磁盘/远程三地方模型入册；CubeMX 只碰干净树
   ## 2026-11-14 bsp_led and bsp_buzzer
 - 前瞻：两者均放入BSP层 bsp_led入LED/ bsp_buzzer入BUZZER/
-- 结果：main.c得到瘦身效果 bsp函数可以直接调用 
+- 结果：构建绿 已commit+push main.c得到瘦身效果 bsp函数可以直接调用 
 - 备注：初始化状态绿灯闪两次和循环状态蓝灯常亮 由于暂无error 红色指示灯不编入
-- 欠账：烧录口损坏 上板欠验证
+- 欠账：无
+- ## 2026-11-16 bsp_uart
+- 前瞻：bsp_uart已放入BSP/UART
+- 细节:构建init初始化函数 Send函数封装HAL_UART_Transmit,其不同放回值有不同颜色反馈
+- 备注：
+- 欠账：

@@ -57,6 +57,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         App/ws2812_encode.c
         BSP/LED/bsp_led.c
         BSP/UART/bsp_uart.c
+        BSP/BUZZER/bsp_buzzer.c
 )
 
 # Add include paths

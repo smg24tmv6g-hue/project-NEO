@@ -4,17 +4,37 @@
 #include "bsp_uart.h"
 #include <string.h>
 #include <stdio.h>
+#include "main.h"
 
-
+#define BSP_UART_HANDLE &huart1
+#define BSP_UART_TIMEOUT 100
 extern UART_HandleTypeDef huart1;
-uint8_t rx_buf;
-void BSP_UART_Init(UART_HandleTypeDef* huart) {
-  HAL_UART_Receive_IT(&huart1,&rx_buf,1);
+
+
+
+void bsp_uart_init(void) {
+
 }
-
-void BSP_UART_Transmit(float data1,float data2,float data3,float data4) {
-    char tx_buf[64];
-    sprintf(tx_buf,"%d %d %d %d",(int)data1,(int)data2,(int)data3,(int)data4);
-      HAL_UART_Transmit(&huart1,tx_buf,strlen(tx_buf),100);
-}//向上位机发送数据
-
+int bsp_uart_send(const uint8_t *data, uint16_t length) {
+    if (data == NULL || length == 0) {
+        return -1;
+    }
+    if (HAL_UART_Transmit(BSP_UART_HANDLE,(uint8_t *)data,length,BSP_UART_TIMEOUT)!= HAL_OK) {
+        return -2;
+    }
+    return 0;
+}
+int bsp_uart_receive(uint8_t *data, uint16_t length, uint32_t timeout) {
+    if (data == NULL || length == 0) {
+        return -1;
+    }
+    if (HAL_UART_Receive(BSP_UART_HANDLE,(uint8_t *)data,length,timeout)!= HAL_OK) {
+        return -2;
+    }
+    return 0;
+}
+int __io_outchar(int ch) {
+    uint8_t c=(uint8_t)ch;
+    bsp_uart_send(&c,1);
+    return ch;
+}

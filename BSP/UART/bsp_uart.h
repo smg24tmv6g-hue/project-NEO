@@ -4,11 +4,14 @@
 
 #ifndef BSP_UART_H
 #define BSP_UART_H
-#include "main.h"
+
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 
-#include "stm32h7xx_hal_uart.h"
+void bsp_uart_init(void);
+int  bsp_uart_send(const uint8_t *data, uint16_t length);
+int  bsp_uart_receive(uint8_t *buf, uint16_t length, uint32_t timeout);
+int  __io_outchar(int ch);
 
-void BSP_UART_Init(UART_HandleTypeDef* huart);
-void BSP_UART_Transmit(float data1,float data2,float data3,float data4);
-#endif //BSP_UART_H
+#endif // BSP_UART_H

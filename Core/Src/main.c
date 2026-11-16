@@ -24,6 +24,7 @@
 #include "bsp_led.h"
 #include "../../App/ws2812_encode.h"
 #include "../../BSP/BUZZER/bsp_buzzer.h"
+#include "bsp_uart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -73,7 +74,9 @@ volatile uint32_t flag=0;
   * @brief  The application entry point.
   * @retval int
   */
-int main(void) {
+int main(void)
+{
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -105,9 +108,12 @@ int main(void) {
   /* USER CODE BEGIN 2 */
   uint8_t rx_byte;
   uint8_t tx_byte='D';
+  bsp_uart_init();
   bsp_buzzer_init();
   bsp_led_boot();
   bsp_led_set(0,0,255);
+  static uint32_t color_tick=0;
+  static uint8_t  color_active = 0;
 
   /* USER CODE END 2 */
 
@@ -117,21 +123,34 @@ int main(void) {
   {
     bsp_buzzer_tick();
     if (flag == 1) {
-      HAL_UART_Transmit(&huart1,&tx_byte, 1, 100);
+      int ret = bsp_uart_send(&tx_byte, 1);   // 只发一次
+      if (ret == -1) {
+        bsp_led_set(0, 255, 255);
+      } else if (ret == -2) {
+        bsp_led_set(0, 0, 119);
+      } else if (ret == 0) {
+        bsp_led_set(230, 145, 56);
+      }
+      color_tick=HAL_GetTick();
+      color_active=1;
       bsp_buzzer_beep();
       flag = 0;
     }
-      HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 100);
+    if (color_active && (HAL_GetTick() - color_tick >= 300)) {
+      bsp_led_set(0, 0, 255); // 变回蓝色
+      color_active = 0;
+    }
+      HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 0);
       if (st==HAL_OK) {
-        HAL_UART_Transmit(&huart1, &rx_byte, 1, 100);
+        HAL_UART_Transmit(&huart1, &rx_byte, 1, 10);
       }
 
-      /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-      /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
     }
-    /* USER CODE END 3 */
-  }
+  /* USER CODE END 3 */
+}
 
 /**
   * @brief System Clock Configuration
