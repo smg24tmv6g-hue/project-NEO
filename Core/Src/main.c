@@ -114,7 +114,8 @@ int main(void)
   bsp_led_set(0,0,255);
   static uint32_t color_tick=0;
   static uint8_t  color_active = 0;
-
+  printf("count=%d\r\n", 123);
+  printf("pi=%f\r\n", 3.14f);
   /* USER CODE END 2 */
 
   /* Infinite loop */
