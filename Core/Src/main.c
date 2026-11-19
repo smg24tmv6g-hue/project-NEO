@@ -106,7 +106,6 @@ int main(void)
   MX_USART1_UART_Init();
   MX_SPI6_Init();
   /* USER CODE BEGIN 2 */
-  uint8_t rx_byte;
   uint8_t tx_byte='D';
   bsp_uart_init();
   bsp_buzzer_init();
@@ -114,6 +113,7 @@ int main(void)
   bsp_led_set(0,0,255);
   static uint32_t color_tick=0;
   static uint8_t  color_active = 0;
+  uint8_t rx_chunk[32];
   printf("count=%d\r\n", 123);
   printf("pi=%f\r\n", 3.14f);
   /* USER CODE END 2 */
@@ -141,11 +141,10 @@ int main(void)
       bsp_led_set(0, 0, 255); // 变回蓝色
       color_active = 0;
     }
-      HAL_StatusTypeDef st=HAL_UART_Receive(&huart1, &rx_byte, 1, 0);
-      if (st==HAL_OK) {
-        HAL_UART_Transmit(&huart1, &rx_byte, 1, 10);
-      }
-
+    uint8_t n=bsp_uart_read(rx_chunk, sizeof(rx_chunk));
+    if (n>0) {
+      bsp_uart_send(rx_chunk, (uint16_t)n);
+    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -41,6 +41,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         BSP/LED/bsp_led.c
         BSP/BUZZER/bsp_buzzer.h
         BSP/BUZZER/bsp_buzzer.c
+        BSP/CAN/bsp_can.h
+        BSP/CAN/bsp_can.c
 )
 
 # Add STM32CubeMX generated sources
