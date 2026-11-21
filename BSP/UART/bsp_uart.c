@@ -22,7 +22,7 @@ static  uint8_t rx_byte;
 
 void bsp_uart_init(void) {
     rx_head=rx_tail=0;
-    HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+    HAL_UART_Receive_IT(BSP_UART_HANDLE, &rx_byte, 1);
 }
 int bsp_uart_send(const uint8_t *data, uint16_t length) {
     if (data == NULL || length == 0) {
@@ -33,15 +33,7 @@ int bsp_uart_send(const uint8_t *data, uint16_t length) {
     }
     return 0;
 }
-int bsp_uart_receive(uint8_t *data, uint16_t length, uint32_t timeout) {
-    if (data == NULL || length == 0) {
-        return -1;
-    }
-    if (HAL_UART_Receive(BSP_UART_HANDLE,(uint8_t *)data,length,timeout)!= HAL_OK) {
-        return -2;
-    }
-    return 0;
-}
+
 int __io_putchar(int ch) {
     uint8_t c=(uint8_t)ch;
     bsp_uart_send(&c,1);
@@ -55,7 +47,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
             rx_buf[rx_head]=rx_byte;
             rx_head=next;
         }
-        HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
+        HAL_UART_Receive_IT(BSP_UART_HANDLE, &rx_byte, 1);
     }
 }
 
