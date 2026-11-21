@@ -117,15 +117,29 @@ int main(void)
   bsp_led_set(0,0,255);
   static uint32_t color_tick=0;
   static uint8_t  color_active = 0;
+  static uint32_t imu_tick=0;
   uint8_t rx_chunk[32];
   int imu_ret=bsp_imu_init();
+  if (imu_ret == 0) imu_ret = bsp_imu_config();  
   printf("imu ret=%d\r\n", imu_ret);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    if (HAL_GetTick()-imu_tick>=1000) {
+      imu_tick=HAL_GetTick();
+      int16_t a[3],g[3];
+      float amg[3],gdps[3];
+      if (bsp_imu_read_raw(a,g)==0&&bsp_imu_read_scaled(amg,gdps)==0) {
+        printf("A:%d %d %d | mg:%.0f %.0f %.0f | G:%d %d %d | dps:%.1f %.1f %.1f\r\n",
+                 a[0],a[1],a[2],amg[0],amg[1],amg[2],
+                 g[0],g[1],g[2],gdps[0],gdps[1],gdps[2]);
+      }
+    }
     bsp_buzzer_tick();
     if (flag == 1) {
       int ret = bsp_uart_send(&tx_byte, 1);   // 只发一次
@@ -145,7 +159,7 @@ int main(void)
       bsp_led_set(0, 0, 255); // 变回蓝色
       color_active = 0;
     }
-    uint8_t n=bsp_uart_read(rx_chunk, sizeof(rx_chunk));
+    int n=bsp_uart_read(rx_chunk, sizeof(rx_chunk));
     if (n>0) {
       bsp_uart_send(rx_chunk, (uint16_t)n);
     }

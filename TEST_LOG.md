@@ -55,7 +55,7 @@
 - 欠账：-1/-2 分支没有在板上验证 回声仍然直接调 HAL（留到第 3 级）
 - send超时固定100ms length>1152必超时（推导：10 bit/字节，86.8 µs/字节）待决 
 ## 2026-11-17 bsp_uart (2)
-- 方式：上板，VOFA 115200，printf 打印 boot ok、count=%d、pi=%f
+- 方式：上板、VOFA 115200，printf 打印 boot ok、count=%d、pi=%f
 - 结果：boot ok、count=123 正常；加选项前 pi= 为空，加选项后 pi=3.140000
 - 证据：nano.specs 所在行；FLASH 38544 → 46388 B
 - 教训：__io_putchar少打了字母 这个错没有任何报错 是 syscalls.c里的弱声明挡住了 
@@ -67,9 +67,15 @@
 - 配置：RX环缓冲SIZE=128/MASK=12 字节满后丢弃新的保留旧的
 - 只有中断改动head 循环改动tail
 - 中断回调结束再调用一次Receive_IT 不调用=只收一个字节
-- 结果：hello/123 回声正常；400字节连发全部返回
+- 结果：hello/123 回声正常；400个字节连发全部返回
 - 证据：VOFA 截图；发10个字节一个没丢 发51个字节丢1个 大概在35位  90个字节丢2个 大概在36位左右
 - 因为send函数和getc函数每跑一圈就加一点误差 达到阈值就会丢
 - 环缓冲后 400 全回
-- 欠账：TX 仍阻塞（IT/DMA 待遥测上量）；帧组装留 Ch6 DBUS；receive() 阻塞版留调试口；
-  -1/-2 分支未上板；printf 不可用于 ISR；send 超时 100ms 对应 1152 字节上限
+- 欠账：接收TX依然阻塞（IT/DMA 待遥测上量）；在ch6用DBUS时再组装成帧格式；receive() 阻塞版留调试口；
+  -1/-2 分支未上板；printf不可用于中断；send超时100ms对应1152字节上限
+## 2026-11-21 bsp_imu 
+- 方式：上板VOFA115200，手动移动喵板观察六轴的值
+- 操作：从机id识别和认证 datasheet（0x1E/0x0F）
+- 证据：ACC_CONF=0xA8（bit7必须置1、ODR是低4位、BWP是高4位；datasheet第八页的0xA是高半字节）
+- 结果：acc与gyro都能够正常启用 并且可以读出六轴的原始值
+- 欠账：温度未读、DRDY/EXTI、DMA、gyro 零偏标定（Ch6再做）

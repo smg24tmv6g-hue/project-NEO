@@ -11,18 +11,23 @@
 #define BSP_UART_RX_SIZE 128
 #define BSP_UART_RX_SIZE_MASK (BSP_UART_RX_SIZE - 1)
 extern UART_HandleTypeDef huart1;
-static volatile uint16_t rx_head=0, rx_tail=0;
-static uint8_t rx_buf[BSP_UART_RX_SIZE];
-static  uint8_t rx_byte;
 
-
-
-
+typedef struct {
+    uint8_t rx_byte;
+    volatile uint16_t rx_head;
+    volatile uint16_t rx_tail;
+    UART_HandleTypeDef *huart;
+    volatile uint8_t rx_buf[BSP_UART_RX_SIZE];
+}UART_DATA;
+static UART_DATA uart1_data;
 
 
 void bsp_uart_init(void) {
-    rx_head=rx_tail=0;
-    HAL_UART_Receive_IT(BSP_UART_HANDLE, &rx_byte, 1);
+    uart1_data.rx_head = 0;
+    uart1_data.rx_tail = 0;
+    uart1_data.huart=BSP_UART_HANDLE;
+    HAL_UART_Receive_IT(uart1_data.huart, &(uart1_data.rx_byte), 1);
+
 }
 int bsp_uart_send(const uint8_t *data, uint16_t length) {
     if (data == NULL || length == 0) {
@@ -42,32 +47,32 @@ int __io_putchar(int ch) {
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART1) {
-        uint16_t next=(uint16_t)(rx_head+1)&BSP_UART_RX_SIZE_MASK;
-        if (next != rx_tail) {
-            rx_buf[rx_head]=rx_byte;
-            rx_head=next;
+        uint16_t next=(uint16_t)((uart1_data.rx_head+1)&BSP_UART_RX_SIZE_MASK);
+        if (next!=uart1_data.rx_tail) {
+            uart1_data.rx_buf[uart1_data.rx_head]=uart1_data.rx_byte;
+            uart1_data.rx_head=next;
         }
-        HAL_UART_Receive_IT(BSP_UART_HANDLE, &rx_byte, 1);
+        HAL_UART_Receive_IT(BSP_UART_HANDLE, &uart1_data.rx_byte, 1);
     }
 }
 
 int bsp_uart_getc(void) {
-    if (rx_head==rx_tail) return (-1);
-        uint8_t c=rx_buf[rx_tail];
-        rx_tail=(rx_tail+1)&BSP_UART_RX_SIZE_MASK;
+    if (uart1_data.rx_head==uart1_data.rx_tail) return (-1);
+        uint8_t c=uart1_data.rx_buf[uart1_data.rx_tail];
+        uart1_data.rx_tail=(uart1_data.rx_tail+1)&BSP_UART_RX_SIZE_MASK;
         return (int)c;
 
 }
 
 uint16_t bsp_uart_available(void) {
-    return (rx_head-rx_tail)&BSP_UART_RX_SIZE_MASK;
+    return (uart1_data.rx_head-uart1_data.rx_tail)&BSP_UART_RX_SIZE_MASK;
 }
 int bsp_uart_read(uint8_t *buf, uint16_t rx_size) {
     if (buf == NULL||rx_size == 0) return -1;
     uint16_t n = 0;
-    while (n < rx_size && rx_tail != rx_head) {
-        buf[n++] = rx_buf[rx_tail];
-        rx_tail = (uint16_t)((rx_tail + 1) & BSP_UART_RX_SIZE_MASK);
+    while (n < rx_size && uart1_data.rx_tail != uart1_data.rx_head) {
+        buf[n++] = uart1_data.rx_buf[uart1_data.rx_tail];
+        uart1_data.rx_tail = (uint16_t)((uart1_data.rx_tail + 1) & BSP_UART_RX_SIZE_MASK);
     }
     return (int)n;
 }
