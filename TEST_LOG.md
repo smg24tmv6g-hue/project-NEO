@@ -29,7 +29,7 @@
 - 回声：上板通过：hello 环回正确；发123回123
 - 按键：上板通过：按一次就响一下 两种音调换着响
 - WS2812：上板通过：红绿蓝橙轮转顺序正确、无红绿互换
-- 蜂鸣器：上板通过：4k/2k 双音可辨、200ms 自停
+- 蜂鸣器：上板通过：4k/2k双音调分辨、200ms自停
 ## 2026-11-8 App层构建
 - 操作：将ws2812_encode.h/.c移入App test_ws2812.c放入App\test
 - 方式：cd D:\firsttry\projectneo
@@ -66,7 +66,7 @@
 - 方式：上板VOFA115200+宿主机 printf 验证
 - 配置：RX环缓冲SIZE=128/MASK=12 字节满后丢弃新的保留旧的
 - 只有中断改动head 循环改动tail
-- 中断回调结束再调用一次Receive_IT 不调用=只收一个字节
+- 中断回调结束再调用一次Receive_IT 不调用只能收一个字节
 - 结果：hello/123 回声正常；400个字节连发全部返回
 - 证据：VOFA 截图；发10个字节一个没丢 发51个字节丢1个 大概在35位  90个字节丢2个 大概在36位左右
 - 因为send函数和getc函数每跑一圈就加一点误差 达到阈值就会丢
@@ -78,4 +78,17 @@
 - 操作：从机id识别和认证 datasheet（0x1E/0x0F）
 - 证据：ACC_CONF=0xA8（bit7必须置1、ODR是低4位、BWP是高4位；datasheet第八页的0xA是高半字节）
 - 结果：acc与gyro都能够正常启用 并且可以读出六轴的原始值
+- 问题：acc需要使能两次 第一次容易被忽略 不然acc3轴值无法读出
 - 欠账：温度未读、DRDY/EXTI、DMA、gyro 零偏标定（Ch6再做）
+## 2026-11-22 bsp_can (限Internal loopback测试中)
+- 方式：上板Internal LoopBack 模式 依旧VOFA115200
+- 配置：FDCAN1 PD0/PD1，Classic帧，1Mbps（HSE24M/ presc1/TS1=17/TS2=6 采样点75%左右）
+  RxFifo0=3/TxFifoQueue=3 元素，StdFilters=0 + 全局接受，NVIC IT0
+- 结果：回环通过——每秒 TX id=0x123 [cnt,0xAA]，中断收到并打印d0递增
+- 证据：VOFA连续RX行；psr LEC=0、ecr=0
+- 教训1：TxFifoQueueElmtsNbr或者RxFifo0ElmtsNbr=0导致无邮箱或者无接收槽，接收帧的时候就会失败
+- 教训2：ConfigGlobalFilter必须在HAL_FDCAN_Start 之前调用
+- 教训3：本版HAL的DataLength=字节数（不是len<<16）之前写错导致 DLCtoBytes[] 越界
+  消息RAM越界写导致HardFault（GDB定位在FDCAN_CopyMessageToRAM）
+- 欠账：上CAN总线（使用Normal mode+AutoRetransmission Enable+第二节点+两个120Ω电阻抗干扰）；
+  扩展帧、硬件过滤器、Bus-Off恢复策略

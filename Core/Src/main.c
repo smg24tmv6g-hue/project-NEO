@@ -26,6 +26,7 @@
 #include "../../BSP/BUZZER/bsp_buzzer.h"
 #include "bsp_uart.h"
 #include "bsp_imu.h"
+#include "bsp_can.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,6 +45,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+
+FDCAN_HandleTypeDef hfdcan1;
 
 SPI_HandleTypeDef hspi2;
 SPI_HandleTypeDef hspi6;
@@ -64,6 +67,7 @@ static void MX_TIM12_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_SPI6_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_FDCAN1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -71,6 +75,20 @@ static void MX_SPI2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 volatile uint32_t flag=0;
+
+uint32_t last_can = 0;
+static uint8_t cnt = 0;
+static volatile uint8_t rx_flag = 0;
+static uint32_t rx_id; static uint8_t rx_d[8], rx_len;
+
+/* handler 只存不打印（中断里禁止 printf） */
+void on_can_rx(uint32_t id, const uint8_t *data, uint8_t len) {
+  rx_id = id; rx_len = len;
+  for (int i = 0; i < len && i < 8; i++) rx_d[i] = data[i];
+  rx_flag = 1;
+}
+
+volatile uint32_t g_rx_isr = 0;
 /* USER CODE END 0 */
 
 /**
@@ -109,6 +127,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_SPI6_Init();
   MX_SPI2_Init();
+  MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
   uint8_t tx_byte='D';
   bsp_uart_init();
@@ -120,16 +139,38 @@ int main(void)
   static uint32_t imu_tick=0;
   uint8_t rx_chunk[32];
   int imu_ret=bsp_imu_init();
-  if (imu_ret == 0) imu_ret = bsp_imu_config();  
-  printf("imu ret=%d\r\n", imu_ret);
+  if (imu_ret == 0) imu_ret = bsp_imu_config();
+  // printf("imu ret=%d\r\n", imu_ret);
 
+  static uint8_t hb = 0;
 
+  printf("can before\r\n");
+  int can_ret = bsp_can_init();
+  printf("can init ret=%d state=%u err=0x%08X\r\n",
+         can_ret, (unsigned)hfdcan1.State, (unsigned)hfdcan1.ErrorCode);
+  bsp_can_register(0x123, on_can_rx);
+  printf("enter loop\r\n");
+
+  printf("BUILD_A 2026\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    
+    if (HAL_GetTick() - last_can >= 1000) {
+      last_can = HAL_GetTick();
+      uint8_t d[2] = { cnt++, 0xAA };
+      if (bsp_can_send(0x123, d, 2) != 0) printf("can tx fail\r\n");
+    }
+    if (rx_flag) {
+      rx_flag = 0;
+      printf("RX id=0x%03lX len=%u d0=%02X d1=%02X\r\n",
+             (unsigned long)rx_id, (unsigned)rx_len, rx_d[0], rx_d[1]);
+    }
+
+
     if (HAL_GetTick()-imu_tick>=1000) {
       imu_tick=HAL_GetTick();
       int16_t a[3],g[3];
@@ -166,7 +207,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    }
+  }
   /* USER CODE END 3 */
 }
 
@@ -228,6 +269,59 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief FDCAN1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_FDCAN1_Init(void)
+{
+
+  /* USER CODE BEGIN FDCAN1_Init 0 */
+
+  /* USER CODE END FDCAN1_Init 0 */
+
+  /* USER CODE BEGIN FDCAN1_Init 1 */
+
+  /* USER CODE END FDCAN1_Init 1 */
+  hfdcan1.Instance = FDCAN1;
+  hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
+  hfdcan1.Init.Mode = FDCAN_MODE_INTERNAL_LOOPBACK;
+  hfdcan1.Init.AutoRetransmission = ENABLE;
+  hfdcan1.Init.TransmitPause = DISABLE;
+  hfdcan1.Init.ProtocolException = DISABLE;
+  hfdcan1.Init.NominalPrescaler = 1;
+  hfdcan1.Init.NominalSyncJumpWidth = 6;
+  hfdcan1.Init.NominalTimeSeg1 = 17;
+  hfdcan1.Init.NominalTimeSeg2 = 6;
+  hfdcan1.Init.DataPrescaler = 6;
+  hfdcan1.Init.DataSyncJumpWidth = 1;
+  hfdcan1.Init.DataTimeSeg1 = 29;
+  hfdcan1.Init.DataTimeSeg2 = 10;
+  hfdcan1.Init.MessageRAMOffset = 0;
+  hfdcan1.Init.StdFiltersNbr = 0;
+  hfdcan1.Init.ExtFiltersNbr = 0;
+  hfdcan1.Init.RxFifo0ElmtsNbr = 3;
+  hfdcan1.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
+  hfdcan1.Init.RxFifo1ElmtsNbr = 0;
+  hfdcan1.Init.RxFifo1ElmtSize = FDCAN_DATA_BYTES_8;
+  hfdcan1.Init.RxBuffersNbr = 0;
+  hfdcan1.Init.RxBufferSize = FDCAN_DATA_BYTES_8;
+  hfdcan1.Init.TxEventsNbr = 0;
+  hfdcan1.Init.TxBuffersNbr = 0;
+  hfdcan1.Init.TxFifoQueueElmtsNbr = 3;
+  hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
+  hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
+  if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN FDCAN1_Init 2 */
+
+  /* USER CODE END FDCAN1_Init 2 */
+
 }
 
 /**

@@ -63,6 +63,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         BSP/UART/bsp_uart.c
         BSP/BUZZER/bsp_buzzer.c
         BSP/IMU/bsp_imu.c
+        BSP/CAN/bsp_can.c
 )
 
 # Add include paths
@@ -72,6 +73,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         BSP/LED
         BSP/UART
         BSP/IMU
+        BSP/CAN
 )
 
 # Add project symbols (macros)

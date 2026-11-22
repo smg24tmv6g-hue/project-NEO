@@ -128,10 +128,12 @@ int bsp_imu_read_raw(int16_t acc[3], int16_t gyro[3])
 int bsp_imu_read_scaled(float acc_mg[3], float gyro_dps[3])
 {
     int16_t a[3], g[3];
-    if (bsp_imu_read_raw(a, g) != 0) return -1;
+    if (bsp_imu_read_raw(a,g) != 0) {
+        return -1;
+    }
     for (int i = 0; i < 3; i++) {
-        acc_mg[i]   = a[i] * 1000.0f / ACC_LSB_PER_G;
-        gyro_dps[i] = g[i] / GYRO_LSB_PER_DPS;
+        acc_mg[i]=a[i]*1000.0f/ACC_LSB_PER_G;
+        gyro_dps[i]=g[i]/GYRO_LSB_PER_DPS;
     }
     return 0;
 }
