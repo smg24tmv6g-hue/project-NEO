@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "FreeRTOS.h"
+#include "cmsis_os2.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -27,6 +29,7 @@
 #include "bsp_uart.h"
 #include "bsp_imu.h"
 #include "bsp_can.h"
+#include "FreeRTOS.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,6 +58,34 @@ TIM_HandleTypeDef htim12;
 
 UART_HandleTypeDef huart1;
 
+/* Definitions for Task1 */
+osThreadId_t Task1Handle;
+const osThreadAttr_t Task1_attributes = {
+  .name = "Task1",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for Task2 */
+osThreadId_t Task2Handle;
+const osThreadAttr_t Task2_attributes = {
+  .name = "Task2",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for LEDTask */
+osThreadId_t LEDTaskHandle;
+const osThreadAttr_t LEDTask_attributes = {
+  .name = "LEDTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for IMUTask */
+osThreadId_t IMUTaskHandle;
+const osThreadAttr_t IMUTask_attributes = {
+  .name = "IMUTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -68,6 +99,11 @@ static void MX_USART1_UART_Init(void);
 static void MX_SPI6_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_FDCAN1_Init(void);
+void StartDefaultTask1(void *argument);
+void StartTask2(void *argument);
+void StartLEDTask(void *argument);
+void StartIMUTask(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -89,6 +125,7 @@ void on_can_rx(uint32_t id, const uint8_t *data, uint8_t len) {
 }
 
 volatile uint32_t g_rx_isr = 0;
+uint32_t lost=0,sent=0;
 /* USER CODE END 0 */
 
 /**
@@ -140,7 +177,7 @@ int main(void)
   uint8_t rx_chunk[32];
   int imu_ret=bsp_imu_init();
   if (imu_ret == 0) imu_ret = bsp_imu_config();
-  // printf("imu ret=%d\r\n", imu_ret);
+  printf("imu ret=%d\r\n",imu_ret);
 
   static uint8_t hb = 0;
 
@@ -150,9 +187,53 @@ int main(void)
          can_ret, (unsigned)hfdcan1.State, (unsigned)hfdcan1.ErrorCode);
   bsp_can_register(0x123, on_can_rx);
   printf("enter loop\r\n");
-
-  printf("BUILD_A 2026\r\n");
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  bsp_uart_rtos_init();
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of Task1 */
+  Task1Handle = osThreadNew(StartDefaultTask1, NULL, &Task1_attributes);
+
+  /* creation of Task2 */
+  Task2Handle = osThreadNew(StartTask2, NULL, &Task2_attributes);
+
+  /* creation of LEDTask */
+  LEDTaskHandle = osThreadNew(StartLEDTask, NULL, &LEDTask_attributes);
+
+  /* creation of IMUTask */
+  IMUTaskHandle = osThreadNew(StartIMUTask, NULL, &IMUTask_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -182,14 +263,14 @@ int main(void)
       }
     }
     bsp_buzzer_tick();
-    if (flag == 1) {
-      int ret = bsp_uart_send(&tx_byte, 1);   // 只发一次
-      if (ret == -1) {
-        bsp_led_set(0, 255, 255);
-      } else if (ret == -2) {
-        bsp_led_set(0, 0, 119);
-      } else if (ret == 0) {
-        bsp_led_set(230, 145, 56);
+    if (flag==1) {
+      int ret=bsp_uart_send(&tx_byte,1);// 只发一次
+      if (ret==-1) {
+        bsp_led_set(0,255,255);
+      } else if (ret==-2) {
+        bsp_led_set(0,0,119);
+      } else if (ret==0) {
+        bsp_led_set(230,145,56);
       }
       color_tick=HAL_GetTick();
       color_active=1;
@@ -562,7 +643,7 @@ static void MX_GPIO_Init(void)
   HAL_SYSCFG_AnalogSwitchConfig(SYSCFG_SWITCH_PC3, SYSCFG_SWITCH_PC3_CLOSE);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -586,6 +667,115 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
 }
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask1 */
+/**
+  * @brief  Function implementing the Task1 thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask1 */
+void StartDefaultTask1(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  uint32_t tick=osKernelGetTickCount();
+  tick=(tick/20U+1U)*20U;
+  for(;;)
+  {
+   if ((bsp_uart_printf("T1 %lu\r\n",(unsigned long)HAL_GetTick()))==0){
+      sent++;
+    }else {
+      lost++;
+    }
+    tick+=20U;
+    osDelayUntil(tick);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartTask2 */
+/**
+* @brief Function implementing the Task2 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask2 */
+void StartTask2(void *argument)
+{
+  /* USER CODE BEGIN StartTask2 */
+  /* Infinite loop */
+  uint32_t tick=osKernelGetTickCount();
+  tick=(tick/200U+1U)*200U;
+  for(;;)
+  {
+    bsp_uart_printf("task2 t=%lu Lyibin is the most handsome in the world %lu\r\n",(unsigned long)HAL_GetTick(),(unsigned long)HAL_GetTick());
+    if ((HAL_GetTick()%1000U)<200U) {
+      bsp_uart_printf("LOST=%lu SENT=%lu\r\n",(unsigned long)lost,(unsigned long)sent);
+    }
+    tick+=200U;
+    osDelayUntil(tick);
+  }
+  /* USER CODE END StartTask2 */
+}
+
+/* USER CODE BEGIN Header_StartLEDTask */
+/**
+* @brief Function implementing the LEDTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartLEDTask */
+void StartLEDTask(void *argument)
+{
+  /* USER CODE BEGIN StartLEDTask */
+  /* Infinite loop */
+  uint32_t tick=osKernelGetTickCount();
+  tick=(tick/500U+1U)*500U;
+  for(;;)
+  {
+    bsp_led_set(0,0,255);
+    osDelayUntil(tick+250U);
+    bsp_led_set(0,122,123);
+    tick+=500U;
+    osDelayUntil(tick);
+  }
+  /* USER CODE END StartLEDTask */
+}
+
+/* USER CODE BEGIN Header_StartIMUTask */
+/**
+* @brief Function implementing the IMUTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartIMUTask */
+void StartIMUTask(void *argument)
+{
+  /* USER CODE BEGIN StartIMUTask */
+  /* Infinite loop */
+  uint32_t tick=osKernelGetTickCount();
+  uint32_t print_tick=tick;
+  tick=(tick/100U+1U)*100U;
+  for(;;)
+  {
+    int16_t a[3],g[3];
+    static float amg[3],gdps[3];
+    if (bsp_imu_read_raw(a,g)==0) {
+      for (int i=0;i<3;i++) {
+        amg[i]=a[i]*1000.0f/5460.0f;
+        gdps[i]=g[i]/16.384f;
+      }
+    }
+    if (HAL_GetTick()-print_tick>=1000U) {
+      print_tick=HAL_GetTick();
+      bsp_uart_printf("IMU mg=%0.f %.0f %.0f | dsp=%.1f %.1f %.1f\r\n",amg[0],amg[1],amg[2],gdps[0],gdps[1],gdps[2]);
+    }
+    tick+=100U;
+    osDelayUntil(tick);
+  }
+  /* USER CODE END StartIMUTask */
+}
 
  /* MPU Configuration */
 

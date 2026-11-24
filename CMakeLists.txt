@@ -45,6 +45,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         BSP/CAN/bsp_can.c
         BSP/IMU/bsp_imu.h
         BSP/IMU/bsp_imu.c
+        Core/Inc/FreeRTOSConfig.h
+        Core/Src/freertos.c
 )
 
 # Add STM32CubeMX generated sources
@@ -64,6 +66,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         BSP/BUZZER/bsp_buzzer.c
         BSP/IMU/bsp_imu.c
         BSP/CAN/bsp_can.c
+        Core/Src/freertos.c
 )
 
 # Add include paths
@@ -74,6 +77,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         BSP/UART
         BSP/IMU
         BSP/CAN
+        Core/Inc
 )
 
 # Add project symbols (macros)

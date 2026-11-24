@@ -43,8 +43,8 @@
 ## 2026-11-14 bsp_led and bsp_buzzer
 - 前瞻：两者均放入BSP层 bsp_led入LED/ bsp_buzzer入BUZZER/
 - 结果：构建绿 已commit+push main.c得到瘦身效果 bsp函数可以直接调用
-- 备注：初始化状态绿灯闪两次和循环状态蓝灯常亮 由于暂无error 红色指示灯不编入
-- 欠账：ERROR 态未实现（无可观测故障源
+- 备注：初始化状态绿灯闪两次和 循环状态蓝/青 250ms/250ms切换着亮（11-24由于rtos蓝灯亮灭过程有噪音加入青色） 由于暂无error 红色指示灯不编入
+- 欠账：ERROR 态未实现（无可观测故障源）
 ## 2026-11-16 bsp_uart (1)
 - 前瞻：bsp_uart已放入BSP/UART（bsp_uart_init未开始写 第 3 级开中断接收时再填）
 - 细节:Send函数封装HAL_UART_Transmit,其不同放回值有不同颜色反馈（-1/-2 两个分支还没验证）
@@ -92,3 +92,17 @@
   消息RAM越界写导致HardFault（GDB定位在FDCAN_CopyMessageToRAM）
 - 欠账：上CAN总线（使用Normal mode+AutoRetransmission Enable+第二节点+两个120Ω电阻抗干扰）；
   扩展帧、硬件过滤器、Bus-Off恢复策略
+## 2026-11-24 Ch5 FreeRTOS
+- 方式：上板 VOFA115200 uart1 SPI2 SPI6 CAN四种通信方式可以同时进行（伪同时）
+- 配置：接口使用CMSIS-RTOSV2 tick 1000Hz，heap 32KB；4个任务（T1 20ms、task2 200ms、
+  LED 500ms、IMU 100ms）；T1/LED/IMU 优先级 Above Normal/Normal/AboveNormal
+- 结果：周期准确（200/100ms零漂移） 四路输出无插入 发送丢失LOST=0 IMU a[z]≈1000mg
+- 证据：VOFA截图+灯闪视频
+- 教训1：osDelay 相对延时误差累计（201/202ms）所以控制周期用osDelayUntil
+- 教训2：高优先级任务会抢占低优先级任务的HAL_UART_Transmit导致HAL_BUSY整行丢失（实测LOST递增到50+）
+- 教训3：osMutexNew在osKernelInitialize之前调导致BASEPRI常置导致SysTick 被屏蔽
+- 教训4：printf逐字符send，mutex只保护到单字节 导致行内插入；改 bsp_uart_printf 整行发送
+- 教训5 ：状态码0=成功，if(funcation()) 方向反了导致LOST/SENT统计颠倒
+- 教训6 ：osDelayUntil必须在每圈末尾 不然漏掉会导致高优先级任务空转饿死低优先级
+- 教训7：WS2812实测：把"灭"改成青色后仍出现绿，证明绿与代码无关 需在上电后发一帧有效数据覆盖.同理任何“灯不受控”现象先怀疑器件上电状态再怀疑代码
+- 欠账：真总线CAN、UART发送异步化、姿态解算
