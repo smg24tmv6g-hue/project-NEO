@@ -12,15 +12,8 @@ void ws2812_encode(uint8_t g, uint8_t r, uint8_t b, uint8_t out[24])
     for (uint8_t byte = 0; byte < 3; byte++)
     {
         for (int8_t bit=7;bit>=0;bit--) {
-            uint8_t on = (color[byte]>>bit)&1u;
-            out[byte * 8 + (7 - bit)] = on ? WS2812_BIT1 : WS2812_BIT0;
+            uint8_t on=(color[byte]>>bit)&1u;
+            out[byte*8+(7-bit)]=on ? WS2812_BIT1 : WS2812_BIT0;
         }
-
-
-
-        }
-
-
-
-
+    }
 }

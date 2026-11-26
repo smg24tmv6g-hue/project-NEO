@@ -45,11 +45,11 @@ int bsp_uart_send(const uint8_t *data, uint16_t length) {
     if (uart_mutex) {
         osMutexAcquire(uart_mutex, osWaitForever);
     }
-    HAL_StatusTypeDef st= HAL_UART_Transmit(BSP_UART_HANDLE, (uint8_t *)data, length,BSP_UART_TIMEOUT);
+    HAL_StatusTypeDef st = HAL_UART_Transmit(BSP_UART_HANDLE, (uint8_t *)data, length, BSP_UART_TIMEOUT);
     if (uart_mutex) {
         osMutexRelease(uart_mutex);
-        return (st==HAL_OK)?0:-2;
     }
+    return (st == HAL_OK) ? 0 : -2;
 }
 
 int __io_putchar(int ch) {

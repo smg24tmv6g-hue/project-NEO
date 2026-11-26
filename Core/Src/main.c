@@ -24,11 +24,13 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bsp_led.h"
-#include "../../App/ws2812_encode.h"
+#include "../../Component/ENCODE_WS2812/ws2812_encode.h"
 #include "../../BSP/BUZZER/bsp_buzzer.h"
 #include "bsp_uart.h"
 #include "bsp_imu.h"
 #include "bsp_can.h"
+#include "pid.h"
+#include "gm6020.h"
 #include "FreeRTOS.h"
 /* USER CODE END Includes */
 
@@ -86,8 +88,34 @@ const osThreadAttr_t IMUTask_attributes = {
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
+/* Definitions for PIDTask */
+osThreadId_t PIDTaskHandle;
+const osThreadAttr_t PIDTask_attributes = {
+  .name = "PIDTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for CANTxTask */
+osThreadId_t CANTxTaskHandle;
+const osThreadAttr_t CANTxTask_attributes = {
+  .name = "CANTxTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for CANRxTask */
+osThreadId_t CANRxTaskHandle;
+const osThreadAttr_t CANRxTask_attributes = {
+  .name = "CANRxTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for can_rxQueue */
+osMessageQueueId_t can_rxQueueHandle;
+const osMessageQueueAttr_t can_rxQueue_attributes = {
+  .name = "can_rxQueue"
+};
 /* USER CODE BEGIN PV */
-
+extern GM6020_Feedback_t gm6020_feedback_t;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,6 +131,9 @@ void StartDefaultTask1(void *argument);
 void StartTask2(void *argument);
 void StartLEDTask(void *argument);
 void StartIMUTask(void *argument);
+void StartPIDTask(void *argument);
+void CANTxStartTask(void *argument);
+void CANRxStartTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -111,21 +142,8 @@ void StartIMUTask(void *argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 volatile uint32_t flag=0;
-
-uint32_t last_can = 0;
-static uint8_t cnt = 0;
-static volatile uint8_t rx_flag = 0;
-static uint32_t rx_id; static uint8_t rx_d[8], rx_len;
-
-/* handler 只存不打印（中断里禁止 printf） */
-void on_can_rx(uint32_t id, const uint8_t *data, uint8_t len) {
-  rx_id = id; rx_len = len;
-  for (int i = 0; i < len && i < 8; i++) rx_d[i] = data[i];
-  rx_flag = 1;
-}
-
-volatile uint32_t g_rx_isr = 0;
 uint32_t lost=0,sent=0;
+volatile uint16_t motor_cmd_i=0;
 /* USER CODE END 0 */
 
 /**
@@ -178,15 +196,8 @@ int main(void)
   int imu_ret=bsp_imu_init();
   if (imu_ret == 0) imu_ret = bsp_imu_config();
   printf("imu ret=%d\r\n",imu_ret);
-
-  static uint8_t hb = 0;
-
-  printf("can before\r\n");
-  int can_ret = bsp_can_init();
-  printf("can init ret=%d state=%u err=0x%08X\r\n",
-         can_ret, (unsigned)hfdcan1.State, (unsigned)hfdcan1.ErrorCode);
-  bsp_can_register(0x123, on_can_rx);
-  printf("enter loop\r\n");
+  motor_cmd_i=600;//实验室GM6020为电流控制
+  /* CAN is started later, after can_rxQueueHandle exists (see RTOS_QUEUES) */
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -205,8 +216,19 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of can_rxQueue */
+  can_rxQueueHandle = osMessageQueueNew (16, sizeof(CAN_RX_t), &can_rxQueue_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  /* Start CAN only after the RX queue exists, otherwise early frames are lost
+   * and the RX FIFO can end up permanently full. */
+  {
+    int can_ret = bsp_can_init();
+    bsp_uart_printf("can init ret=%d state=%u err=0x%08lX\r\n",
+                    can_ret, (unsigned)hfdcan1.State, (unsigned long)hfdcan1.ErrorCode);
+  }
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -221,6 +243,15 @@ int main(void)
 
   /* creation of IMUTask */
   IMUTaskHandle = osThreadNew(StartIMUTask, NULL, &IMUTask_attributes);
+
+  /* creation of PIDTask */
+  PIDTaskHandle = osThreadNew(StartPIDTask, NULL, &PIDTask_attributes);
+
+  /* creation of CANTxTask */
+  CANTxTaskHandle = osThreadNew(CANTxStartTask, NULL, &CANTxTask_attributes);
+
+  /* creation of CANRxTask */
+  CANRxTaskHandle = osThreadNew(CANRxStartTask, NULL, &CANRxTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -239,19 +270,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    
-    if (HAL_GetTick() - last_can >= 1000) {
-      last_can = HAL_GetTick();
-      uint8_t d[2] = { cnt++, 0xAA };
-      if (bsp_can_send(0x123, d, 2) != 0) printf("can tx fail\r\n");
-    }
-    if (rx_flag) {
-      rx_flag = 0;
-      printf("RX id=0x%03lX len=%u d0=%02X d1=%02X\r\n",
-             (unsigned long)rx_id, (unsigned)rx_len, rx_d[0], rx_d[1]);
-    }
-
-
     if (HAL_GetTick()-imu_tick>=1000) {
       imu_tick=HAL_GetTick();
       int16_t a[3],g[3];
@@ -369,8 +387,8 @@ static void MX_FDCAN1_Init(void)
   /* USER CODE END FDCAN1_Init 1 */
   hfdcan1.Instance = FDCAN1;
   hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
-  hfdcan1.Init.Mode = FDCAN_MODE_INTERNAL_LOOPBACK;
-  hfdcan1.Init.AutoRetransmission = ENABLE;
+  hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
+  hfdcan1.Init.AutoRetransmission = DISABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
   hfdcan1.Init.NominalPrescaler = 1;
@@ -616,6 +634,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0|GPIO_PIN_3, GPIO_PIN_SET);
@@ -679,17 +698,17 @@ void StartDefaultTask1(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  uint32_t tick=osKernelGetTickCount();
-  tick=(tick/20U+1U)*20U;
+  // uint32_t tick=osKernelGetTickCount();
+  // tick=(tick/20U+1U)*20U;
   for(;;)
   {
-   if ((bsp_uart_printf("T1 %lu\r\n",(unsigned long)HAL_GetTick()))==0){
-      sent++;
-    }else {
-      lost++;
-    }
-    tick+=20U;
-    osDelayUntil(tick);
+   // if ((bsp_uart_printf("T1 %lu\r\n",(unsigned long)HAL_GetTick()))==0){
+   //    sent++;
+   //  }else {
+   //    lost++;
+   //  }
+   //  tick+=20U;
+   //  osDelayUntil(tick);
   }
   /* USER CODE END 5 */
 }
@@ -705,16 +724,16 @@ void StartTask2(void *argument)
 {
   /* USER CODE BEGIN StartTask2 */
   /* Infinite loop */
-  uint32_t tick=osKernelGetTickCount();
-  tick=(tick/200U+1U)*200U;
+  // uint32_t tick=osKernelGetTickCount();
+  // tick=(tick/200U+1U)*200U;
   for(;;)
   {
-    bsp_uart_printf("task2 t=%lu Lyibin is the most handsome in the world %lu\r\n",(unsigned long)HAL_GetTick(),(unsigned long)HAL_GetTick());
-    if ((HAL_GetTick()%1000U)<200U) {
-      bsp_uart_printf("LOST=%lu SENT=%lu\r\n",(unsigned long)lost,(unsigned long)sent);
-    }
-    tick+=200U;
-    osDelayUntil(tick);
+    // bsp_uart_printf("task2 t=%lu Lyibin is the most handsome in the world %lu\r\n",(unsigned long)HAL_GetTick(),(unsigned long)HAL_GetTick());
+    // if ((HAL_GetTick()%1000U)<200U) {
+    //   bsp_uart_printf("LOST=%lu SENT=%lu\r\n",(unsigned long)lost,(unsigned long)sent);
+    // }
+    // tick+=200U;
+    // osDelayUntil(tick);
   }
   /* USER CODE END StartTask2 */
 }
@@ -775,6 +794,104 @@ void StartIMUTask(void *argument)
     osDelayUntil(tick);
   }
   /* USER CODE END StartIMUTask */
+}
+
+/* USER CODE BEGIN Header_StartPIDTask */
+/**
+* @brief Function implementing the PIDTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartPIDTask */
+void StartPIDTask(void *argument)
+{
+  /* USER CODE BEGIN StartPIDTask */
+  /* Infinite loop */
+  uint32_t tick=osKernelGetTickCount();
+  for(;;)
+  {
+    pid_ctrl_t pid;
+    osDelay(1);
+  }
+  /* USER CODE END StartPIDTask */
+}
+
+/* USER CODE BEGIN Header_CANTxStartTask */
+/**
+* @brief Function implementing the CANTxTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_CANTxStartTask */
+void CANTxStartTask(void *argument)
+{
+  /* USER CODE BEGIN CANTxStartTask */
+  /* Infinite loop */
+  uint32_t ok=0,bad=0;
+  uint32_t print_tick=HAL_GetTick();
+  uint32_t tick=osKernelGetTickCount();
+  for(;;)
+  {
+    uint16_t iq=motor_cmd_i;
+    uint8_t d[8]={(uint8_t )(iq>>8),(uint8_t)iq,0,0,0,0,0,0};
+    int r = bsp_can_send(0x1FE, d, 8);//实验室为电流控制
+    if (r == 0) ok++; else bad++;
+    hfdcan1.ErrorCode = HAL_FDCAN_ERROR_NONE;
+
+    if (HAL_GetTick() - print_tick >= 1000U) {
+      print_tick = HAL_GetTick();
+      bsp_uart_printf("TX ok=%lu bad=%lu psr=0x%08lX ecr=0x%08lX\r\n",(unsigned long)ok, (unsigned long)bad,(unsigned long)hfdcan1.Instance->PSR,(unsigned long)hfdcan1.Instance->ECR);
+    }
+    tick+=1U;
+    osDelayUntil(tick);
+  }
+  /* USER CODE END CANTxStartTask */
+}
+
+/* USER CODE BEGIN Header_CANRxStartTask */
+/**
+* @brief Function implementing the CANRxTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_CANRxStartTask */
+void CANRxStartTask(void *argument)
+{
+  /* USER CODE BEGIN CANRxStartTask */
+  /* Infinite loop */
+  CAN_RX_t rx_message;
+  uint32_t print_tick = HAL_GetTick();
+  for(;;)
+  {
+    /* 1000ms timeout: if nothing arrives, report bus diagnostics once per second */
+    if (osMessageQueueGet(can_rxQueueHandle, &rx_message, NULL, 1000U) == osOK) {
+      if (rx_message.data_len == 8 && rx_message.id == 0x205) {
+        GM6020_Parse(&gm6020_feedback_t, rx_message.data);
+      }
+
+      /* throttle prints to 500ms: 1kHz feedback would flood the UART */
+      if (HAL_GetTick() - print_tick >= 500U) {
+        print_tick = HAL_GetTick();
+        bsp_uart_printf("GM6020 id=1 angle=%u rpm=%d cur=%d temp=%u\r\n",
+                        gm6020_feedback_t.machine_raw_data,
+                        gm6020_feedback_t.speed,
+                        gm6020_feedback_t.current,
+                        gm6020_feedback_t.temperature);
+      }
+    } else {
+      /* no frame for 1s -> show bus state and ISR counters to locate the break */
+      extern volatile uint32_t g_can_isr_cnt, g_can_rx_ok, g_can_rx_drop, g_can_rx_fail;
+      bsp_uart_printf("CAN idle: err=0x%08lX psr=0x%08lX ecr=0x%08lX isr=%lu ok=%lu drop=%lu fail=%lu\r\n",
+                      (unsigned long)hfdcan1.ErrorCode,
+                      (unsigned long)hfdcan1.Instance->PSR,
+                      (unsigned long)hfdcan1.Instance->ECR,
+                      (unsigned long)g_can_isr_cnt,
+                      (unsigned long)g_can_rx_ok,
+                      (unsigned long)g_can_rx_drop,
+                      (unsigned long)g_can_rx_fail);
+    }
+  }
+  /* USER CODE END CANRxStartTask */
 }
 
  /* MPU Configuration */

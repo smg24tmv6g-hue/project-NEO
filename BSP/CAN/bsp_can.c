@@ -4,11 +4,8 @@
 #include "bsp_can.h"
 #include "main.h"
 #include <stddef.h>
-#include <stdio.h>
-extern FDCAN_HandleTypeDef hfdcan1;
 
-#define BSP_CAN_MAX_HANDLERS 8
-static struct { uint32_t id; bsp_can_handler_t fn; } s_tab[BSP_CAN_MAX_HANDLERS];
+extern FDCAN_HandleTypeDef hfdcan1;
 
 int bsp_can_init(void)
 {
@@ -34,36 +31,46 @@ int bsp_can_send(uint32_t id, const uint8_t *data, uint8_t len)
     h.FDFormat = FDCAN_CLASSIC_CAN;
     h.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
     h.MessageMarker = 0;
-    return (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &h, (uint8_t *)data) == HAL_OK)?0:-2;
+    return (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &h, (uint8_t *)data) == HAL_OK) ? 0 : -2;
 }
 
-int bsp_can_register(uint32_t id, bsp_can_handler_t handler)
+/* debug counters (volatile: written in ISR, read in task) */
+volatile uint32_t g_can_isr_cnt = 0;
+volatile uint32_t g_can_rx_ok = 0;
+volatile uint32_t g_can_rx_drop = 0;
+volatile uint32_t g_can_rx_fail = 0;
+
+/* ISR: fetch frames and push them into the queue only.
+ * No parsing, no printing, no blocking.
+ * IMPORTANT: always drain the RX FIFO. If we leave frames in it, the FIFO
+ * becomes full, RF0N stops being set and the interrupt never fires again. */
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hcan, uint32_t RxFifo0ITs)
 {
-    for (int i = 0; i < BSP_CAN_MAX_HANDLERS; i++)
-        if (s_tab[i].fn == NULL) {
-            s_tab[i].id = id; s_tab[i].fn = handler;
-            return 0;
-        }
-    return -1;
-}
+    if (hcan->Instance != FDCAN1) return;
+    g_can_isr_cnt++;
 
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hcan, uint32_t RxFifo0ITs) {
-    if (hcan->Instance != FDCAN1) {
-        return;
-    }
-    if (!(RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)) {
-        return;
-    }
     FDCAN_RxHeaderTypeDef rh;
     uint8_t d[8];
-    uint32_t guard=0;
-    while ((guard++<32U)&&(HAL_FDCAN_GetRxMessage(hcan, FDCAN_RX_FIFO0, &rh, d) == HAL_OK))
+    uint32_t guard = 0;
+
+    while (guard++ < 8U)
     {
-        for (int i = 0; i<BSP_CAN_MAX_HANDLERS;i++) {
-            if (s_tab[i].fn && s_tab[i].id == rh.Identifier) {
-                s_tab[i].fn(rh.Identifier, d, (uint8_t)rh.DataLength);
-                break;
+        if (HAL_FDCAN_GetRxMessage(hcan, FDCAN_RX_FIFO0, &rh, d) != HAL_OK) {
+            g_can_rx_fail++;
+            break;
+        }
+        g_can_rx_ok++;
+
+        if (can_rxQueueHandle != NULL) {
+            CAN_RX_t f;
+            f.id = rh.Identifier;
+            f.data_len = (uint8_t)rh.DataLength;
+            for (int i = 0; i < 8; i++) f.data[i] = d[i];
+            if (osMessageQueuePut(can_rxQueueHandle, &f, 0, 0) != osOK) {
+                g_can_rx_drop++;
             }
+        } else {
+            g_can_rx_drop++;              /* queue not created yet: discard, but keep FIFO empty */
         }
     }
 }

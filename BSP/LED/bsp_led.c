@@ -3,7 +3,7 @@
 //
 #include "bsp_led.h"
 #include "main.h"
-#include "ws2812_encode.h"
+#include "../../Component/ENCODE_WS2812/ws2812_encode.h"
 extern SPI_HandleTypeDef hspi6;
 
 void bsp_led_boot(void) {
